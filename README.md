@@ -1,4 +1,4 @@
-# 🔮 FocusNexus / JIHLL
+# 🔮 JIHLL
 
 > **A modern, robust interpreted programming language built simply and efficiently.**
 
