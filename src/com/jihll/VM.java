@@ -17,8 +17,9 @@ class VM {
         final int ip;
         final int fp;
         final Integer catchAddress;
-        Frame(Chunk chunk, int ip, int fp, Integer catchAddress) { 
-            this.chunk = chunk; this.ip = ip; this.fp = fp; this.catchAddress = catchAddress; 
+        final Object returnOverride;
+        Frame(Chunk chunk, int ip, int fp, Integer catchAddress, Object returnOverride) {
+            this.chunk = chunk; this.ip = ip; this.fp = fp; this.catchAddress = catchAddress; this.returnOverride = returnOverride;
         }
     }
     private final Stack<Frame> frames = new Stack<>();
@@ -53,13 +54,14 @@ class VM {
                         Object retVal = pop();
                         if (frames.isEmpty()) return;
                         Frame frame = frames.pop();
-                        
-                        this.sp = this.fp;
+                        if (frame.returnOverride != null) retVal = frame.returnOverride;
+
+                        this.sp = this.fp - 1; // discard callee slot
                         this.chunk = frame.chunk;
                         this.ip = frame.ip;
                         this.fp = frame.fp;
                         this.currentCatchAddress = frame.catchAddress;
-                        
+
                         push(retVal);
                         break;
                         
@@ -114,7 +116,7 @@ class VM {
                             } else {
                                 JihllFunction method = inst.klass.findMethod(name);
                                 if (method == null) throw new RuntimeException("Undefined property '" + name + "'.");
-                                push(method);
+                                push(new JihllBoundMethod(inst, method));
                             }
                         } else { throw new RuntimeException("Only instances have properties."); }
                         break;
@@ -140,6 +142,9 @@ class VM {
                     case Op.LESS: push(toDouble(pop(), pop(), (a, b) -> (a < b) ? 1.0 : 0.0)); break;
                     case Op.GREATER: push(toDouble(pop(), pop(), (a, b) -> (a > b) ? 1.0 : 0.0)); break;
                     case Op.EQUAL: push(Objects.equals(pop(), pop())); break;
+                    case Op.LESS_EQUAL: push(toDouble(pop(), pop(), (a, b) -> (a <= b) ? 1.0 : 0.0)); break;
+                    case Op.GREATER_EQUAL: push(toDouble(pop(), pop(), (a, b) -> (a >= b) ? 1.0 : 0.0)); break;
+                    case Op.NOT_EQUAL: push(!Objects.equals(pop(), pop())); break;
                     case Op.JUMP_IF_FALSE: { int offset = readByte(); if (isFalsey(pop())) ip += offset; break; }
                     case Op.JUMP: { int offset = readByte(); ip += offset; break; }
                     
@@ -179,8 +184,14 @@ class VM {
                     }
                     
                     case Op.CALL:
-                        int argCount = readByte(); 
+                        int argCount = readByte();
                         Object callee = stack[sp - 1 - argCount];
+
+                        if (callee instanceof JihllBoundMethod) {
+                            JihllBoundMethod bound = (JihllBoundMethod) callee;
+                            argCount = bindReceiver(argCount, bound.receiver, bound.method);
+                            callee = bound.method;
+                        }
                         
                         if (callee instanceof NativeMethod) {
                             Object[] args = new Object[argCount];
@@ -189,14 +200,25 @@ class VM {
                             push(((NativeMethod)callee).invoke(args));
                         }
                         else if (callee instanceof JihllClass) {
-                            for(int i=0;i<argCount;i++) pop();
-                            pop();
-                            push(new JihllInstance((JihllClass)callee));
+                            JihllClass klass = (JihllClass) callee;
+                            JihllInstance instance = new JihllInstance(klass);
+                            JihllFunction init = klass.findMethod("init");
+                            if (init == null) {
+                                for(int i=0;i<argCount;i++) pop();
+                                pop();
+                                push(instance);
+                            } else {
+                                argCount = bindReceiver(argCount, instance, init);
+                                frames.push(new Frame(this.chunk, this.ip, this.fp, this.currentCatchAddress, instance));
+                                this.fp = sp - argCount;
+                                this.chunk = init.chunk;
+                                this.ip = init.address;
+                            }
                         }
                         else if (callee instanceof JihllFunction) {
                             JihllFunction fn = (JihllFunction)callee;
-                            
-                            frames.push(new Frame(this.chunk, this.ip, this.fp, this.currentCatchAddress));
+
+                            frames.push(new Frame(this.chunk, this.ip, this.fp, this.currentCatchAddress, null));
                             this.fp = sp - argCount;
                             this.chunk = fn.chunk;
                             this.ip = fn.address;
@@ -217,4 +239,16 @@ class VM {
     }
     private Object toDouble(Object b, Object a, java.util.function.DoubleBinaryOperator op) { return op.applyAsDouble(toDouble(a), toDouble(b)); }
     private boolean isFalsey(Object o) { return o==null || (o instanceof Boolean && !(Boolean)o) || (o instanceof Double && (Double)o==0.0); }
+
+    private int bindReceiver(int argCount, Object receiver, Object newCallee) {
+        int calleeIndex = sp - 1 - argCount;
+        stack[calleeIndex] = newCallee;
+        if (sp >= stack.length) throw new RuntimeException("Stack Overflow");
+        for (int i = sp - 1; i >= calleeIndex + 1; i--) {
+            stack[i + 1] = stack[i];
+        }
+        stack[calleeIndex + 1] = receiver;
+        sp++;
+        return argCount + 1;
+    }
 }

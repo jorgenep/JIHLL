@@ -11,7 +11,7 @@ enum TokenType {
     PRINT,
 
     // Structure
-    COLON, DOT,
+    COLON, DOT, BLOCK_DOT,
     COMMA,
     LEFT_PAREN, RIGHT_PAREN,
     LEFT_BRACKET, RIGHT_BRACKET,

@@ -18,6 +18,7 @@ class Compiler {
 
     void compile(List<Stmt> statements) {
         for (Stmt statement : statements) compile(statement);
+        chunk.write(Op.CONSTANT); chunk.write(chunk.addConstant(null));
         chunk.write(Op.RETURN); 
     }
 
@@ -125,10 +126,18 @@ class Compiler {
             boolean hasReturn = false;
             for (int i = 0; i < func.body.size(); i++) {
                 Stmt s = func.body.get(i);
-                if (i == func.body.size() - 1 && s instanceof Stmt.Expression) {
-                    compile(((Stmt.Expression)s).expression);
-                    chunk.write(Op.RETURN);
-                    hasReturn = true;
+                if (i == func.body.size() - 1) {
+                    if (s instanceof Stmt.Expression) {
+                        compile(((Stmt.Expression)s).expression);
+                        chunk.write(Op.RETURN);
+                        hasReturn = true;
+                    } else if (s instanceof Stmt.If) {
+                        compileIfExpression((Stmt.If) s);
+                        chunk.write(Op.RETURN);
+                        hasReturn = true;
+                    } else {
+                        compile(s);
+                    }
                 } else {
                     compile(s);
                 }
@@ -179,6 +188,43 @@ class Compiler {
              beginScope();
              for (Stmt s : ((Stmt.Block) stmt).statements) compile(s);
              endScope();
+        }
+    }
+
+    private void compileIfExpression(Stmt.If ifStmt) {
+        compile(ifStmt.condition);
+        chunk.write(Op.JUMP_IF_FALSE); chunk.write(0xff); int elseJump = chunk.code.size() - 1;
+        compileBlockValue((Stmt.Block) ifStmt.thenBranch);
+        chunk.write(Op.JUMP); chunk.write(0xff); int endJump = chunk.code.size() - 1;
+        chunk.code.set(elseJump, chunk.code.size() - 1 - elseJump);
+        if (ifStmt.elseBranch != null) {
+            compileBlockValue((Stmt.Block) ifStmt.elseBranch);
+        } else {
+            chunk.write(Op.CONSTANT); chunk.write(chunk.addConstant(null));
+        }
+        chunk.code.set(endJump, chunk.code.size() - 1 - endJump);
+    }
+
+    private void compileBlockValue(Stmt.Block block) {
+        List<Stmt> stmts = block.statements;
+        if (stmts.isEmpty()) {
+            chunk.write(Op.CONSTANT); chunk.write(chunk.addConstant(null));
+            return;
+        }
+        for (int i = 0; i < stmts.size(); i++) {
+            Stmt s = stmts.get(i);
+            if (i == stmts.size() - 1) {
+                if (s instanceof Stmt.Expression) {
+                    compile(((Stmt.Expression) s).expression);
+                } else if (s instanceof Stmt.If) {
+                    compileIfExpression((Stmt.If) s);
+                } else {
+                    compile(s);
+                    chunk.write(Op.CONSTANT); chunk.write(chunk.addConstant(null));
+                }
+            } else {
+                compile(s);
+            }
         }
     }
 
@@ -262,6 +308,9 @@ class Compiler {
                 case LESS:  chunk.write(Op.LESS); break;
                 case GREATER: chunk.write(Op.GREATER); break;
                 case EQUAL_EQUAL: chunk.write(Op.EQUAL); break;
+                case LESS_EQUAL: chunk.write(Op.LESS_EQUAL); break;
+                case GREATER_EQUAL: chunk.write(Op.GREATER_EQUAL); break;
+                case BANG_EQUAL: chunk.write(Op.NOT_EQUAL); break;
             }
         }
     }

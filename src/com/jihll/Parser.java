@@ -28,11 +28,11 @@ class Parser {
         consume(TokenType.COLON, "Expect ':' before class body.");
         
         List<Stmt.Function> methods = new ArrayList<>();
-        while (!check(TokenType.DOT) && !isAtEnd()) {
+        while (!check(TokenType.BLOCK_DOT) && !isAtEnd()) {
             consume(TokenType.FUN, "Expect 'fun' in class body.");
             methods.add((Stmt.Function) functionDeclaration());
         }
-        consume(TokenType.DOT, "Expect '.' after class body.");
+        consume(TokenType.BLOCK_DOT, "Expect '.' after class body.");
         return new Stmt.Class(name, methods);
     }
 
@@ -60,13 +60,22 @@ class Parser {
         return expressionStatement();
     }
     
+    // FIX: tryStatement now manually parses until CATCH, instead of using parseBlock()
     private Stmt tryStatement() {
         consume(TokenType.COLON, "Expect ':' after try.");
-        Stmt tryBlock = new Stmt.Block(parseBlock());
+        
+        List<Stmt> tryStmts = new ArrayList<>();
+        // Keep parsing statements until we hit 'catch' or EOF
+        while (!check(TokenType.CATCH) && !isAtEnd()) {
+            tryStmts.add(declaration());
+        }
+        Stmt tryBlock = new Stmt.Block(tryStmts);
         
         consume(TokenType.CATCH, "Expect 'catch' after try block.");
         Token errorVar = consume(TokenType.IDENTIFIER, "Expect error variable name.");
         consume(TokenType.COLON, "Expect ':' after catch.");
+        
+        // The catch block DOES end with a dot, so we can use parseBlock() here
         Stmt catchBlock = new Stmt.Block(parseBlock());
         
         return new Stmt.Try(tryBlock, errorVar, catchBlock);
@@ -91,7 +100,7 @@ class Parser {
     private Stmt returnStatement() {
         Token keyword = previous();
         Expr value = null;
-        if (!check(TokenType.DOT) && !check(TokenType.EOF)) {
+           if (!check(TokenType.BLOCK_DOT) && !check(TokenType.EOF)) {
              value = expression();
         }
         return new Stmt.Return(keyword, value);
@@ -104,18 +113,18 @@ class Parser {
         List<Stmt> thenStmts = new ArrayList<>();
         List<Stmt> elseStmts = null;
 
-        while (!check(TokenType.ELSE) && !check(TokenType.DOT) && !isAtEnd()) {
+        while (!check(TokenType.ELSE) && !check(TokenType.BLOCK_DOT) && !isAtEnd()) {
             thenStmts.add(declaration());
         }
 
         if (match(TokenType.ELSE)) {
             consume(TokenType.COLON, "Expect ':' after else.");
             elseStmts = new ArrayList<>();
-            while (!check(TokenType.DOT) && !isAtEnd()) {
+            while (!check(TokenType.BLOCK_DOT) && !isAtEnd()) {
                 elseStmts.add(declaration());
             }
         }
-        consume(TokenType.DOT, "Expect '.' after if block.");
+        consume(TokenType.BLOCK_DOT, "Expect '.' after if block.");
         return new Stmt.If(condition, new Stmt.Block(thenStmts), (elseStmts != null) ? new Stmt.Block(elseStmts) : null);
     }
     
@@ -128,10 +137,10 @@ class Parser {
 
     private List<Stmt> parseBlock() {
         List<Stmt> statements = new ArrayList<>();
-        while (!check(TokenType.DOT) && !isAtEnd()) {
+        while (!check(TokenType.BLOCK_DOT) && !isAtEnd()) {
             statements.add(declaration());
         }
-        consume(TokenType.DOT, "Expect '.' to close block.");
+        consume(TokenType.BLOCK_DOT, "Expect '.' to close block.");
         return statements;
     }
 
@@ -202,7 +211,8 @@ class Parser {
                 consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.");
                 expr = new Expr.Call(expr, args);
             } 
-            else if (match(TokenType.DOT)) {
+            else if (check(TokenType.DOT) && peekNext().type == TokenType.IDENTIFIER) {
+                advance(); // Consume dot
                 Token name = consume(TokenType.IDENTIFIER, "Expect property name after '.'.");
                 expr = new Expr.Get(expr, name);
             }
@@ -267,6 +277,12 @@ class Parser {
         throw new RuntimeException(message);
     }
     private boolean check(TokenType type) { return !isAtEnd() && peek().type == type; }
+    
+    private Token peekNext() {
+        if (current + 1 >= tokens.size()) return tokens.get(tokens.size() - 1);
+        return tokens.get(current + 1);
+    }
+    
     private Token advance() { if (!isAtEnd()) current++; return previous(); }
     private boolean isAtEnd() { return peek().type == TokenType.EOF; }
     private Token peek() { return tokens.get(current); }

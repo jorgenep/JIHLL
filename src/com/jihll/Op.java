@@ -31,4 +31,7 @@ class Op {
     static final int METHOD = 27;
     static final int TRY_ENTER = 28;
     static final int TRY_EXIT = 29;
+    static final int LESS_EQUAL = 30;
+    static final int GREATER_EQUAL = 31;
+    static final int NOT_EQUAL = 32;
 }

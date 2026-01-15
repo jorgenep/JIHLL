@@ -47,7 +47,7 @@ class Lexer {
         char c = advance();
         switch (c) {
             case ':': addToken(TokenType.COLON); break;
-            case '.': addToken(TokenType.DOT); break;
+            case '.': addToken(isBlockDot() ? TokenType.BLOCK_DOT : TokenType.DOT); break;
             case '(': addToken(TokenType.LEFT_PAREN); break;
             case ')': addToken(TokenType.RIGHT_PAREN); break;
             case '[': addToken(TokenType.LEFT_BRACKET); break;
@@ -98,10 +98,46 @@ class Lexer {
     }
 
     private void string() {
-        while (peek() != '"' && !isAtEnd()) advance();
+        while (!isAtEnd()) {
+            if (peek() == '"') {
+                break; 
+            }
+            if (peek() == '\\') { 
+                // Skip the escape character so we don't stop at the next quote
+                advance(); 
+                if (!isAtEnd()) advance(); 
+            } else {
+                advance();
+            }
+        }
+
         if (isAtEnd()) throw new RuntimeException("Unterminated string.");
-        advance();
-        addToken(TokenType.STRING, source.substring(start + 1, current - 1));
+        
+        advance(); // The closing "
+
+        // Process escapes (turn \" into " in memory)
+        String value = source.substring(start + 1, current - 1);
+        value = value.replace("\\\"", "\"")
+                     .replace("\\n", "\n")
+                     .replace("\\t", "\t")
+                     .replace("\\\\", "\\");
+        
+        addToken(TokenType.STRING, value);
+    }
+
+    private boolean isBlockDot() {
+        int i = current;
+        while (i < source.length()) {
+            char c = source.charAt(i);
+            if (c == ' ' || c == '\t') {
+                i++;
+                continue;
+            }
+            if (c == '\r' || c == '\n') return true;
+            if (c == '#') return true;
+            return false;
+        }
+        return true; // EOF
     }
 
     private boolean match(char expected) {

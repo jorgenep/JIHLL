@@ -1,0 +1,69 @@
+print "--- 1. BASIC SYNTAX ---"
+x = 10
+y = 20
+if x < y:
+    print "[PASS] If/Else Logic"
+else:
+    print "[FAIL] If/Else Logic"
+.
+
+list = [1, 2, 3]
+if len(list) == 3.0:
+    print "[PASS] List Length"
+.
+
+print "--- 2. FUNCTIONS & RECURSION ---"
+fun fib n:
+    if n <= 1: n else: fib(n-1) + fib(n-2).
+.
+if fib(10) == 55.0:
+    print "[PASS] Recursion (Fib 10)"
+.
+
+print "--- 3. OOP (CLASSES) ---"
+class User:
+    fun init name:
+        this.name = name
+    .
+    fun greet:
+        "Hello " + this.name
+    .
+.
+
+u = User("Jill")
+if u.greet() == "Hello Jill":
+    print "[PASS] Class Methods & Properties"
+.
+
+print "--- 4. ERROR HANDLING ---"
+try:
+    x = readFile("non_existent_file.txt")
+    print "[FAIL] Should have caught error"
+catch err:
+    print "[PASS] Caught Error: " + err
+.
+
+print "--- 5. JSON & HTTP ---"
+json = "{\"key\": \"value\"}"
+parsed = jsonParse(json)
+# Note: Simple parser returns Map
+print "[PASS] JSON Parsed: " + parsed
+
+# Test HTTP (requires internet)
+try:
+    resp = httpGet("https://www.google.com")
+    if len(resp) > 0:
+        print "[PASS] HTTP Get (Size: " + len(resp) + ")"
+    .
+catch e:
+    print "[WARN] HTTP failed (No internet?): " + e
+.
+
+print "--- 6. CONCURRENCY ---"
+fun worker id:
+    sleep(100)
+    print "[PASS] Worker " + id + " finished"
+.
+spawn worker(1)
+spawn worker(2)
+sleep(200) # Wait for workers

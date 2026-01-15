@@ -1,0 +1,15 @@
+fun fib n:
+    if n < 2: 
+        n
+    else:
+        fib(n - 1) + fib(n - 2)
+    .
+.
+
+print "Starting Benchmark (Fibonacci 30)..."
+start = clock()
+result = fib(30)
+end = clock()
+
+print "Result: " + result
+print "Time Taken: " + (end - start) + " seconds"

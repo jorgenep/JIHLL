@@ -34,7 +34,21 @@ public class JihllLanguage {
             } catch (Exception e) { return null; }
         });
 
-        vm.defineNative("readFile", (a) -> { try{return Files.readString(Paths.get(a[0].toString()));}catch(IOException e){return null;} });
+        vm.defineNative("readFile", (a) -> {
+            try {
+                return Files.readString(Paths.get(a[0].toString()));
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to read file: " + a[0]);
+            }
+        });
+        vm.defineNative("appendFile", (a) -> {
+            try {
+                Files.writeString(Paths.get(a[0].toString()), a[1].toString(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                return true;
+            } catch (IOException e) {
+                return false;
+            }
+        });
         vm.defineNative("writeFile", (a) -> { try{Files.writeString(Paths.get(a[0].toString()), a[1].toString());return true;}catch(IOException e){return false;} });
 
         if (args.length == 1) runFile(args[0]); else runPrompt();
