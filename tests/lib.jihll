@@ -1,0 +1,5 @@
+# tests/lib.jihll
+library_loaded = true
+fun library_func:
+    "From Lib"
+.

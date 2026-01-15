@@ -1,0 +1,25 @@
+print "--- TEST: FILE I/O ---"
+
+filename = "test_file.txt"
+
+# 1. Write
+if writeFile(filename, "Hello"):
+    print "[PASS] Write File"
+else:
+    print "[FAIL] Write File"
+.
+
+# 2. Append
+if appendFile(filename, " World"):
+    print "[PASS] Append File"
+else:
+    print "[FAIL] Append File"
+.
+
+# 3. Read
+content = readFile(filename)
+if content == "Hello World":
+    print "[PASS] Read File"
+else:
+    print "[FAIL] Read File (Got '" + content + "')"
+.

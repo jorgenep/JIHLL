@@ -41,4 +41,9 @@ abstract class Stmt {
         final Stmt body;
         While(Expr condition, Stmt body) { this.condition = condition; this.body = body; }
     }
+    static class Import extends Stmt {
+        final Token keyword;
+        final Expr file;
+        Import(Token keyword, Expr file) { this.keyword = keyword; this.file = file; }
+    }
 }

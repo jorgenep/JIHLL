@@ -1,0 +1,16 @@
+print "--- TEST: MODULES ---"
+
+import "tests/lib.jihll"
+
+if library_loaded:
+    print "[PASS] Variable Import"
+else:
+    print "[FAIL] Variable Import"
+.
+
+msg = library_func()
+if msg == "From Lib":
+    print "[PASS] Function Import"
+else:
+    print "[FAIL] Function Import"
+.

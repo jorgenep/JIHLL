@@ -26,26 +26,20 @@ Alternatively, download a DMG installer from [Oracle](https://www.oracle.com/jav
 
 1. **Open Terminal** and navigate to the project root `FocusNexus`.
 
-2. **Move to the source directory:**
+2. **Compile the source code:**
    ```bash
-   cd src
-   ```
-
-3. **Compile the source code:**
-   ```bash
-   javac com/jihll/*.java
+   javac -d bin ./src/com/jihll/*.java
    ```
 
 ## Verification
 
 Start the interactive shell to ensure everything is working:
 ```bash
-java com.jihll.JIHLLLanguage
+java -cp bin com.jihll.JihllLanguage
 ```
 Expected output:
 ```text
-JIHLL Interactive Shell (Type 'exit' to quit)
-------------------------------------------
+JIHLL Shell (Type 'exit' to quit)
 > 
 ```
 

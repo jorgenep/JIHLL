@@ -1,0 +1,14 @@
+print "--- TEST: CONCURRENCY ---"
+
+fun worker id:
+    print "Worker " + id + " running..."
+    sleep(100)
+    print "Worker " + id + " finished."
+.
+
+print "Spawning 2 workers..."
+spawn worker(1)
+spawn worker(2)
+
+print "[PASS] Spawn syntax executed (Check output order)"
+sleep(500) # Wait for them to finish

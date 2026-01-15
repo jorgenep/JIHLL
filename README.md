@@ -18,13 +18,12 @@ The implementation includes a handwritten **Scanner**, **Recursive Descent Parse
 
 JIHLL supports a wide array of modern programming constructs:
 
-- **📦 Variables**: Dynamic typing with `var`.
+- **📦 Variables**: Dynamic typing with assignment (no `var` keyword).
 - **🖨️ I/O**: Simple built-in `print` statements.
-- **🔄 Control Flow**: robust `if`, `else`, `while` loops.
+- **🔄 Control Flow**: `if`, `else`, `while` blocks using `:` and `.`.
 - **⚡ Functions**: First-class functions with `fun` and `return`.
-- **🏛️ Classes**: Object-oriented programming with `class` and `this`.
-- **🧮 Native Methods**: Built-in support for system calls like `clock()` and math `sqrt()`.
-- **📝 Comments**: C-style comments supported.
+- **🧮 Native Methods**: Built-ins like `clock()`, `sqrt(n)`, `len(x)`, `sleep(ms)`, and file I/O helpers.
+- **📝 Comments**: `#` line comments.
 
 ## 🛠️ Getting Started
 
@@ -43,21 +42,24 @@ Once installed, there are two ways to use JIHLL.
 ### 1. Interactive Shell (REPL)
 Dive straight in and test your ideas.
 ```bash
-$ java com.jihll.JIHLLLanguage
-> print "Hello World";
+$ java -cp bin com.jihll.JihllLanguage
+> print "Hello World"
 Hello World
 ```
 
 ### 2. Script Execution
 Write your logic in a file and run it.
 ```javascript
-// fib.jihll
-fun fib(n) {
-  if (n <= 1) return n;
-  return fib(n - 2) + fib(n - 1);
-}
+# fib.jihll
+fun fib n:
+  if n <= 1:
+    n
+  else:
+    fib(n - 2) + fib(n - 1)
+  .
+.
 
-print fib(10);
+print fib(10)
 ```
 
 For more details, check out the [**Running Guide**](README_RUNNING.md).

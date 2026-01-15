@@ -35,4 +35,15 @@ abstract class Expr {
         final List<Expr> elements;
         Array(List<Expr> elements) { this.elements = elements; }
     }
+    static class MapLiteral extends Expr {
+        final List<Expr> keys;
+        final List<Expr> values;
+        MapLiteral(List<Expr> keys, List<Expr> values) {
+            this.keys = keys; this.values = values;
+        }
+    }
+    static class Spawn extends Expr {
+        final Expr expression;
+        Spawn(Expr expression) { this.expression = expression; }
+    }
 }

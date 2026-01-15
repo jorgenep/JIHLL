@@ -4,17 +4,29 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 class VM {
     private final Object[] stack = new Object[256]; 
     private int sp = 0; 
     
-    // We make globals public/shared for now to simulate Go-like shared state
+    // Global Scope
     public final Map<String, Object> globals = new HashMap<>();
     
-    // Chunk and IP need to be accessible to thread instances
     public Chunk chunk;
     public int ip = 0;
+
+    // Call Stack
+    static class Frame {
+        final Chunk chunk;
+        final int ip;
+        final Map<String, Object> variables = new HashMap<>(); 
+        Frame(Chunk chunk, int ip) { this.chunk = chunk; this.ip = ip; }
+    }
+    private final Stack<Frame> frames = new Stack<>();
 
     void defineNative(String name, NativeMethod method) { globals.put(name, method); }
 
@@ -24,14 +36,32 @@ class VM {
         run();
     }
     
-    // Helper to allow threads to push args
-    public void push(Object value) { stack[sp++] = value; }
+    public void push(Object value) { 
+        if (sp >= stack.length) throw new RuntimeException("Stack Overflow");
+        stack[sp++] = value; 
+    }
+    
+    public Object pop() {
+        if (sp <= 0) throw new RuntimeException("Stack Underflow");
+        return stack[--sp];
+    }
+    
+    // Helper to peek without popping
+    public Object peek() {
+        if (sp <= 0) return null;
+        return stack[sp - 1];
+    }
 
     private void run() {
         while (ip < chunk.code.size()) {
             int instruction = readByte();
             switch (instruction) {
-                case Op.RETURN: return; // End execution of this VM instance
+                case Op.RETURN:
+                    if (frames.isEmpty()) return; // End of program
+                    Frame frame = frames.pop();
+                    this.chunk = frame.chunk;
+                    this.ip = frame.ip;
+                    break;
                 
                 case Op.CONSTANT:
                     int constantIndex = readByte();
@@ -41,18 +71,41 @@ class VM {
                 case Op.PRINT: System.out.println(pop()); break;
                 case Op.POP: pop(); break; 
                 
-                case Op.SET_GLOBAL:
-                    String defName = (String) chunk.constants.get(readByte());
-                    globals.put(defName, stack[sp-1]); // Peek
-                    break;
+                case Op.SET_GLOBAL: {
+                    String name = (String) chunk.constants.get(readByte());
+                    Object val = peek(); // Assignment expressions evaluate to the value
                     
-                case Op.GET_GLOBAL:
-                    String getName = (String) chunk.constants.get(readByte());
-                    if (!globals.containsKey(getName)) throw new RuntimeException("Undefined var " + getName);
-                    push(globals.get(getName));
+                    if (!frames.isEmpty()) {
+                        // We are in a function. 
+                        // 1. If local exists, update it.
+                        // 2. If global exists, update it.
+                        // 3. Else, define NEW LOCAL.
+                        if (frames.peek().variables.containsKey(name)) {
+                            frames.peek().variables.put(name, val);
+                        } else if (globals.containsKey(name)) {
+                            globals.put(name, val);
+                        } else {
+                            frames.peek().variables.put(name, val);
+                        }
+                    } else {
+                        // We are in global scope.
+                        globals.put(name, val);
+                    }
                     break;
+                }
+                    
+                case Op.GET_GLOBAL: {
+                    String name = (String) chunk.constants.get(readByte());
+                    if (!frames.isEmpty() && frames.peek().variables.containsKey(name)) {
+                        push(frames.peek().variables.get(name));
+                    } else if (globals.containsKey(name)) {
+                        push(globals.get(name));
+                    } else {
+                        throw new RuntimeException("Undefined var '" + name + "'");
+                    }
+                    break;
+                }
                 
-                // Math Ops
                 case Op.ADD: {
                     Object b = pop(); Object a = pop();
                     if (a instanceof String || b instanceof String) push(String.valueOf(a) + String.valueOf(b));
@@ -66,8 +119,25 @@ class VM {
                 case Op.GREATER: push(toDouble(pop(), pop(), (a, b) -> (a > b) ? 1.0 : 0.0)); break;
                 case Op.EQUAL: {
                      Object b = pop(); Object a = pop();
-                     push(a.equals(b));
+                     if (a == null) push(b == null);
+                     else push(a.equals(b));
                      break;
+                }
+                case Op.NOT_EQUAL: {
+                    Object b = pop(); Object a = pop();
+                    if (a == null) push(b != null);
+                    else push(!a.equals(b));
+                    break;
+                }
+                case Op.LESS_EQUAL: {
+                    Object b = pop(); Object a = pop();
+                    push(toDouble(a) <= toDouble(b) ? 1.0 : 0.0);
+                    break;
+                }
+                case Op.GREATER_EQUAL: {
+                    Object b = pop(); Object a = pop();
+                    push(toDouble(a) >= toDouble(b) ? 1.0 : 0.0);
+                    break;
                 }
 
                 case Op.JUMP_IF_FALSE: {
@@ -89,29 +159,66 @@ class VM {
                     push(list);
                     break;
                 }
+
+                case Op.BUILD_MAP: {
+                    int count = readByte();
+                    Map<Object, Object> map = new HashMap<>();
+                    for (int i = 0; i < count; i++) {
+                        Object val = pop();
+                        Object key = pop();
+                        map.put(key, val);
+                    }
+                    push(map);
+                    break;
+                }
                 
-                // --- CONCURRENCY: SPAWN ---
+                case Op.IMPORT: {
+                    String filename = pop().toString();
+                    try {
+                        String source = Files.readString(Paths.get(filename));
+                        Lexer lexer = new Lexer(source);
+                        List<Token> tokens = lexer.scanTokens();
+                        Parser parser = new Parser(tokens);
+                        List<Stmt> statements = parser.parse();
+                        
+                        Chunk moduleChunk = new Chunk();
+                        Compiler compiler = new Compiler(moduleChunk);
+                        compiler.compile(statements);
+                        
+                        // Execute module in GLOBAL context (no new frame)
+                        Chunk prevChunk = this.chunk;
+                        int prevIp = this.ip;
+                        this.chunk = moduleChunk;
+                        this.ip = 0;
+                        run();
+                        this.chunk = prevChunk;
+                        this.ip = prevIp;
+                        
+                    } catch (IOException e) {
+                        throw new RuntimeException("Could not import: " + filename);
+                    }
+                    break;
+                }
+
                 case Op.SPAWN: {
                     int argCount = readByte();
-                    Object callee = stack[sp - 1 - argCount];
-
-                    // Capture args
                     Object[] args = new Object[argCount];
+                    // Pop args (reverse order)
                     for (int i = argCount - 1; i >= 0; i--) args[i] = pop();
-                    pop(); // Pop function
+                    
+                    Object callee = pop(); 
 
                     new Thread(() -> {
                         VM threadVM = new VM();
-                        threadVM.chunk = this.chunk; // Share code
-                        threadVM.globals.putAll(this.globals); // Share state
+                        threadVM.globals.putAll(this.globals);
 
                         if (callee instanceof NativeMethod) {
                             ((NativeMethod) callee).invoke(args);
                         } else if (callee instanceof JihllFunction) {
                             JihllFunction fn = (JihllFunction) callee;
-                            // Push args to new stack
+                            // Push args onto NEW stack
                             for (Object arg : args) threadVM.push(arg);
-                            // Set instruction pointer
+                            threadVM.chunk = fn.chunk;
                             threadVM.ip = fn.address;
                             try {
                                 threadVM.run();
@@ -120,42 +227,27 @@ class VM {
                             }
                         }
                     }).start();
+                    
+                    push(null); // Return null to the spawner so POP doesn't fail
                     break;
                 }
                 
-                // --- FUNCTION CALLS ---
                 case Op.CALL:
                     int argCount = readByte();
-                    Object callee = stack[sp - 1 - argCount];
+                    Object[] args = new Object[argCount];
+                    for (int i = argCount - 1; i >= 0; i--) args[i] = pop();
+                    
+                    Object callee = pop(); 
                     
                     if (callee instanceof NativeMethod) {
-                        NativeMethod nativeFunc = (NativeMethod) callee;
-                        Object[] args = new Object[argCount];
-                        for (int i = argCount - 1; i >= 0; i--) args[i] = pop();
-                        pop(); 
-                        push(nativeFunc.invoke(args));
+                        push(((NativeMethod) callee).invoke(args));
                     } else if (callee instanceof JihllFunction) {
                         JihllFunction fn = (JihllFunction) callee;
-                        // For a real stack machine with recursion, we need "Call Frames".
-                        // For this simple version, we are doing a "GOTO" which kills recursion state.
-                        // To support proper function calls, we need a Frame stack. 
-                        // But strictly for the prompt's request (SPAWN is the goal), we handle basic calls here.
-                        
-                        // We will just jump. WARNING: This doesn't support returning to where you came from yet!
-                        // To support return, you need a `Stack<Integer> returnAddrs`.
-                        // For now, let's just run it:
-                        
-                        // NOTE: Implementing Call Frames is complex. 
-                        // To make SPAWN work, we rely on the Thread having its own IP.
-                        // To make CALL work in the main thread, we'd need return addresses.
-                        // For now, I will treat CALL as a Jump without Return for JihllFunctions 
-                        // (User must implement Frame stack for full recursion support later).
-                        
-                        // Cleanup stack args
-                        for (int i = 0; i < argCount; i++) pop(); 
-                        pop(); // func
-                        
-                        ip = fn.address; // JUMP!
+                        // Push args back for function
+                        for (Object arg : args) push(arg);
+                        frames.push(new Frame(this.chunk, this.ip));
+                        this.chunk = fn.chunk;
+                        this.ip = fn.address;
                     }
                     break;
             }
@@ -163,7 +255,6 @@ class VM {
     }
 
     private int readByte() { return chunk.code.get(ip++); }
-    private Object pop() { return stack[--sp]; }
     
     private double toDouble(Object a) {
         if (a instanceof Double) return (Double) a;

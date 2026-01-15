@@ -37,5 +37,5 @@ ehthumbs.db
 bin/
 
 # --- Testing Files ---
-test.test
 pro-and-con.md
+compile.test

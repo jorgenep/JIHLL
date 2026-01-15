@@ -1,0 +1,38 @@
+print "--- TEST: FUNCTIONS ---"
+
+fun add a, b:
+    a + b
+.
+
+fun is_even n:
+    # Hacky modulo since we don't have % op yet
+    half = n / 2
+    # If n/2 is same as floor(n/2) it was even... 
+    # but we don't have floor yet? 
+    # Let's simple check return
+    true
+.
+
+result = add(10, 5)
+
+if result == 15.0:
+    print "[PASS] Function Return"
+else:
+    print "[FAIL] Function Return (Got " + result + ")"
+.
+
+# Recursion Test (Factorial)
+fun fact n:
+    if n <= 1:
+        1
+    else:
+        n * fact(n - 1)
+    .
+.
+
+f = fact(5)
+if f == 120.0:
+    print "[PASS] Recursion"
+else:
+    print "[FAIL] Recursion (Got " + f + ")"
+.

@@ -21,10 +21,11 @@ class Lexer {
         keywords.put("in", TokenType.IN);
         keywords.put("fun", TokenType.FUN);
         keywords.put("return", TokenType.RETURN);
-        keywords.put("spawn", TokenType.SPAWN); // Added
+        keywords.put("spawn", TokenType.SPAWN);
         keywords.put("true", TokenType.TRUE);
         keywords.put("false", TokenType.FALSE);
         keywords.put("print", TokenType.PRINT);
+        keywords.put("import", TokenType.IMPORT);
     }
 
     Lexer(String source) { this.source = source; }
@@ -47,8 +48,8 @@ class Lexer {
             case ')': addToken(TokenType.RIGHT_PAREN); break;
             case '[': addToken(TokenType.LEFT_BRACKET); break;
             case ']': addToken(TokenType.RIGHT_BRACKET); break;
-            case '{': addToken(TokenType.LEFT_BRACE); break;
-            case '}': addToken(TokenType.RIGHT_BRACE); break;
+            case '{': addToken(TokenType.LEFT_BRACE); break;  // Map Start
+            case '}': addToken(TokenType.RIGHT_BRACE); break; // Map End
             case ',': addToken(TokenType.COMMA); break;
             
             case '+': addToken(TokenType.PLUS); break;

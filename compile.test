@@ -1,4 +1,4 @@
 clear
 cd ~/FocusNexus
-/usr/lib/jvm/java-11-openjdk-amd64/bin/javac -d bin src/com/Jihll/*.java
-/usr/lib/jvm/java-11-openjdk-amd64/bin/java -cp /home/elijahjorgensen/FocusNexus/src com.jihll.JIHLLLanguage
+/usr/lib/jvm/java-11-openjdk-amd64/bin/javac -d bin ./src/com/jihll/*.java
+/usr/lib/jvm/java-11-openjdk-amd64/bin/java -cp /home/elijahjorgensen/FocusNexus/bin com.jihll.JihllLanguage

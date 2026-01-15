@@ -1,0 +1,27 @@
+print "--- TEST: DATA STRUCTURES ---"
+
+# 1. Lists
+nums = [1, 2, 3]
+# Note: Since we don't have index access yet (nums[0]), we check length
+if len(nums) == 3.0:
+    print "[PASS] List Creation"
+else:
+    print "[FAIL] List Creation"
+.
+
+# 2. Maps
+user = {
+    name: "Elijah",
+    role: "Admin"
+}
+
+# 3. Nested Structures
+config = {
+    servers: ["s1", "s2"],
+    active: true
+}
+
+# Simple validation by printing
+print "Map Content: " + user
+print "Nested Content: " + config
+print "[PASS] Data Structures (Visual Check)"

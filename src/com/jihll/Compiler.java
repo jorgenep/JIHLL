@@ -17,44 +17,64 @@ class Compiler {
             compile(((Stmt.Print) stmt).expression);
             chunk.write(Op.PRINT);
         } else if (stmt instanceof Stmt.Expression) {
-            compile(((Stmt.Expression) stmt).expression);
-            chunk.write(Op.POP); 
+            Expr expr = ((Stmt.Expression) stmt).expression;
+            compile(expr);
+            chunk.write(Op.POP); // Consume the value (or null from spawn)
+        } else if (stmt instanceof Stmt.Import) {
+            Stmt.Import imp = (Stmt.Import) stmt;
+            compile(imp.file);
+            chunk.write(Op.IMPORT);
         } else if (stmt instanceof Stmt.Function) {
-            // COMPILING A FUNCTION
             Stmt.Function func = (Stmt.Function) stmt;
-            
-            // 1. Emit Jump to skip over function body during normal flow
             chunk.write(Op.JUMP);
-            chunk.write(0xff); // Placeholder
+            chunk.write(0xff); 
             int jumpIdx = chunk.code.size() - 1;
 
-            // 2. Record function start address
             int startAddress = chunk.code.size();
             
-            // 3. Compile body
-            for (Token param : func.params) {
-                // In a real VM, we'd handle locals here. 
-                // For this simple stack VM, we assume args are just on stack.
+            // Bind args
+            for (int i = func.params.size() - 1; i >= 0; i--) {
+                int paramNameIdx = chunk.addConstant(func.params.get(i).lexeme);
+                chunk.write(Op.SET_GLOBAL); 
+                chunk.write(paramNameIdx);
+                chunk.write(Op.POP); 
             }
-            for (Stmt s : func.body) compile(s);
             
-            // Ensure implicit return at end of function
-            chunk.write(Op.RETURN);
+            // Implicit Return Logic
+            boolean hasReturn = false;
+            for (int i = 0; i < func.body.size(); i++) {
+                Stmt s = func.body.get(i);
+                boolean isLast = i == func.body.size() - 1;
+                if (isLast && s instanceof Stmt.Expression) {
+                    compile(((Stmt.Expression)s).expression);
+                    chunk.write(Op.RETURN);
+                    hasReturn = true;
+                } else if (isLast && s instanceof Stmt.If) {
+                    compileIfAsReturn((Stmt.If) s);
+                    hasReturn = true;
+                } else {
+                    compile(s);
+                }
+            }
+            
+            if (!hasReturn) {
+                chunk.write(Op.CONSTANT);
+                chunk.write(chunk.addConstant(null));
+                chunk.write(Op.RETURN);
+            }
 
-            // 4. Patch the jump
             int endAddress = chunk.code.size();
             chunk.code.set(jumpIdx, endAddress - jumpIdx - 1);
 
-            // 5. Create JihllFunction object and store in a Global Variable
-            JihllFunction fnObj = new JihllFunction(func.name.lexeme, func.params.size(), startAddress);
+            JihllFunction fnObj = new JihllFunction(func.name.lexeme, func.params.size(), startAddress, chunk);
             int constIdx = chunk.addConstant(fnObj);
             chunk.write(Op.CONSTANT);
             chunk.write(constIdx);
             
             int nameIdx = chunk.addConstant(func.name.lexeme);
-            chunk.write(Op.SET_GLOBAL); // Define function name globally
+            chunk.write(Op.SET_GLOBAL); 
             chunk.write(nameIdx);
-            chunk.write(Op.POP); // SET_GLOBAL keeps value on stack, we pop it off
+            chunk.write(Op.POP); 
 
         } else if (stmt instanceof Stmt.If) {
             Stmt.If ifStmt = (Stmt.If) stmt;
@@ -94,6 +114,71 @@ class Compiler {
         }
     }
 
+    private void compileIfAsReturn(Stmt.If ifStmt) {
+        compile(ifStmt.condition);
+        chunk.write(Op.JUMP_IF_FALSE);
+        chunk.write(0xff);
+        int elseJump = chunk.code.size() - 1;
+
+        compileReturnBranch(ifStmt.thenBranch);
+
+        chunk.write(Op.JUMP);
+        chunk.write(0xff);
+        int endJump = chunk.code.size() - 1;
+
+        chunk.code.set(elseJump, chunk.code.size() - 1 - elseJump);
+
+        if (ifStmt.elseBranch != null) {
+            compileReturnBranch(ifStmt.elseBranch);
+        } else {
+            int nullIdx = chunk.addConstant(null);
+            chunk.write(Op.CONSTANT);
+            chunk.write(nullIdx);
+            chunk.write(Op.RETURN);
+        }
+
+        chunk.code.set(endJump, chunk.code.size() - 1 - endJump);
+    }
+
+    private void compileReturnBranch(Stmt stmt) {
+        if (stmt instanceof Stmt.Block) {
+            List<Stmt> statements = ((Stmt.Block) stmt).statements;
+            if (statements.isEmpty()) {
+                int nullIdx = chunk.addConstant(null);
+                chunk.write(Op.CONSTANT);
+                chunk.write(nullIdx);
+                chunk.write(Op.RETURN);
+                return;
+            }
+
+            for (int i = 0; i < statements.size(); i++) {
+                Stmt s = statements.get(i);
+                boolean isLast = i == statements.size() - 1;
+                if (isLast) {
+                    compileReturnBranch(s);
+                } else {
+                    compile(s);
+                }
+            }
+            return;
+        }
+
+        if (stmt instanceof Stmt.Expression) {
+            compile(((Stmt.Expression) stmt).expression);
+            chunk.write(Op.RETURN);
+        } else if (stmt instanceof Stmt.Return) {
+            compile(stmt);
+        } else if (stmt instanceof Stmt.If) {
+            compileIfAsReturn((Stmt.If) stmt);
+        } else {
+            compile(stmt);
+            int nullIdx = chunk.addConstant(null);
+            chunk.write(Op.CONSTANT);
+            chunk.write(nullIdx);
+            chunk.write(Op.RETURN);
+        }
+    }
+
     private void compile(Expr expr) {
         if (expr instanceof Expr.Assign) {
             Expr.Assign assign = (Expr.Assign) expr;
@@ -101,35 +186,24 @@ class Compiler {
             int nameIdx = chunk.addConstant(assign.name.lexeme);
             chunk.write(Op.SET_GLOBAL);
             chunk.write(nameIdx);
+        } else if (expr instanceof Expr.Spawn) {
+            Expr inner = ((Expr.Spawn)expr).expression;
+            if (inner instanceof Expr.Call) {
+                Expr.Call call = (Expr.Call) inner;
+                compile(call.callee);
+                for (Expr arg : call.arguments) compile(arg);
+                chunk.write(Op.SPAWN);
+                chunk.write(call.arguments.size());
+            } else {
+                throw new RuntimeException("Spawn must call a function.");
+            }
         } else if (expr instanceof Expr.Call) {
             Expr.Call call = (Expr.Call) expr;
-            
-            // Check if this is a SPAWN command
-            if (call.callee instanceof Expr.Variable && 
-                ((Expr.Variable)call.callee).name.type == TokenType.SPAWN) {
-                 // It's a spawn! "spawn func()" -> func is first arg
-                 // The parser treats "spawn" as the function name in a call structure if used like spawn(x)
-                 // But our parser likely parsed "spawn" as a Keyword if we added it to Lexer properly.
-                 // Actually, "spawn fn()" parsing might need tweaking if spawn is a keyword.
-                 // Assuming parser handles "spawn fn(args)" similar to "call fn(args)"
-            }
-
             compile(call.callee);
             for (Expr arg : call.arguments) compile(arg);
-            
-            // If the callee was actually the "spawn" keyword, emit SPAWN
-            // Since SPAWN is a keyword, the Parser might have handled it.
-            // Simplified: We assume standard CALL opcode unless we detect specific syntax.
-            // For now, let's assume the user types: spawn myFunc(arg)
-            // And we handle "spawn" specially here? 
-            // Better: Add a SPAWN statement in Parser?
-            // For THIS implementation: use Op.CALL unless specifically handled.
-            
             chunk.write(Op.CALL);
             chunk.write(call.arguments.size());
-        } 
-        // ... (Include other expressions: Literal, Variable, Binary, Array from previous steps)
-        else if (expr instanceof Expr.Literal) {
+        } else if (expr instanceof Expr.Literal) {
             int index = chunk.addConstant(((Expr.Literal) expr).value);
             chunk.write(Op.CONSTANT);
             chunk.write(index);
@@ -142,6 +216,14 @@ class Compiler {
             for (Expr element : array.elements) compile(element);
             chunk.write(Op.BUILD_LIST);
             chunk.write(array.elements.size());
+        } else if (expr instanceof Expr.MapLiteral) {
+            Expr.MapLiteral map = (Expr.MapLiteral) expr;
+            for (int i = 0; i < map.keys.size(); i++) {
+                compile(map.keys.get(i));
+                compile(map.values.get(i));
+            }
+            chunk.write(Op.BUILD_MAP);
+            chunk.write(map.keys.size());
         } else if (expr instanceof Expr.Binary) {
             Expr.Binary binary = (Expr.Binary) expr;
             compile(binary.left);
@@ -154,6 +236,9 @@ class Compiler {
                 case LESS:  chunk.write(Op.LESS); break;
                 case GREATER: chunk.write(Op.GREATER); break;
                 case EQUAL_EQUAL: chunk.write(Op.EQUAL); break;
+                case LESS_EQUAL: chunk.write(Op.LESS_EQUAL); break;
+                case GREATER_EQUAL: chunk.write(Op.GREATER_EQUAL); break;
+                case BANG_EQUAL: chunk.write(Op.NOT_EQUAL); break;
             }
         }
     }

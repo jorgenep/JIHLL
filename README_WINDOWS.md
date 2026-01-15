@@ -23,27 +23,26 @@ Download and install the latest JDK from:
 
 1. **Open Command Prompt** or PowerShell.
 
-2. **Navigate to the `src` directory** inside the project folder:
+2. **Navigate to the project root**:
    ```cmd
-   cd C:\path\to\FocusNexus\src
+   cd C:\path\to\JIHLL
    ```
 
 3. **Compile the code:**
    ```cmd
-   javac com\jihll\*.java
+   javac -d bin .\src\com\jihll\*.java
    ```
 
 ## Verification
 
 Run the interactive shell:
 ```cmd
-java com.jihll.JIHLLLanguage
+java -cp bin com.jihll.JihllLanguage
 ```
 
 If successful, you will see:
 ```text
-JIHLL Interactive Shell (Type 'exit' to quit)
-------------------------------------------
+JIHLL Shell (Type 'exit' to quit)
 > 
 ```
 

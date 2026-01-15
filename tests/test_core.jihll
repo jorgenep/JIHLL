@@ -1,0 +1,40 @@
+print "--- TEST: CORE SYNTAX ---"
+
+# 1. Variables & Math
+x = 10
+y = 20
+sum = x + y * 2
+
+if sum == 50:
+    print "[PASS] Math Priority"
+else:
+    print "[FAIL] Math Priority (Got " + sum + ")"
+.
+
+# 2. Logic (AND/OR via nesting)
+passed = false
+if x > 5:
+    if y < 30:
+        passed = true
+    .
+.
+
+if passed:
+    print "[PASS] Nested Logic"
+else:
+    print "[FAIL] Nested Logic"
+.
+
+# 3. Loops
+i = 0
+count = 0
+while i < 5:
+    count = count + 1
+    i = i + 1
+.
+
+if count == 5:
+    print "[PASS] While Loop"
+else:
+    print "[FAIL] While Loop"
+.

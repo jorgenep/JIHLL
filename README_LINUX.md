@@ -34,15 +34,14 @@ sudo pacman -S jdk-openjdk
 
 ## Compilation
 
-1. **Navigate to the source directory:**
-   Assuming you are in the project root `FocusNexus`:
+1. **Stay in the project root:**
    ```bash
-   cd src
+   cd /path/to/JIHLL
    ```
 
 2. **Compile the source code:**
    ```bash
-   javac com/jihll/*.java
+   /usr/lib/jvm/java-11-openjdk-amd64/bin/javac -d bin ./src/com/jihll/*.java
    ```
    This will compile all `.java` files in the `com/jihll` package.
 
@@ -50,12 +49,11 @@ sudo pacman -S jdk-openjdk
 
 To verify the installation, run the interactive editor:
 ```bash
-java com.jihll.JIHLLLanguage
+java -cp bin com.jihll.JihllLanguage
 ```
 You should see:
 ```text
-JIHLL Interactive Shell (Type 'exit' to quit)
-------------------------------------------
+JIHLL Shell (Type 'exit' to quit)
 > 
 ```
 

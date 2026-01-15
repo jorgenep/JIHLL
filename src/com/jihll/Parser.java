@@ -40,7 +40,24 @@ class Parser {
         if (match(TokenType.IF)) return ifStatement();
         if (match(TokenType.WHILE)) return whileStatement();
         if (match(TokenType.RETURN)) return returnStatement();
+        if (match(TokenType.IMPORT)) return importStatement();
+        
+        // Fix: Explicitly handle SPAWN as a statement start
+        if (match(TokenType.SPAWN)) return spawnStatement();
+        
         return expressionStatement();
+    }
+    
+    private Stmt spawnStatement() {
+        // "spawn worker(1)" -> parse "worker(1)" as expression
+        Expr callExpr = expression(); 
+        return new Stmt.Expression(new Expr.Spawn(callExpr));
+    }
+    
+    private Stmt importStatement() {
+        Token keyword = previous();
+        Expr file = expression();
+        return new Stmt.Import(keyword, file);
     }
 
     private Stmt printStatement() {
@@ -78,7 +95,8 @@ class Parser {
         
         consume(TokenType.DOT, "Expect '.' after if block.");
 
-        return new Stmt.If(condition, new Stmt.Block(thenStmts), (elseStmts != null) ? new Stmt.Block(elseStmts) : null);
+        return new Stmt.If(condition, new Stmt.Block(thenStmts), 
+                           (elseStmts != null) ? new Stmt.Block(elseStmts) : null);
     }
     
     private Stmt whileStatement() {
@@ -151,23 +169,20 @@ class Parser {
 
     private Expr call() {
         Expr expr = primary();
+
         while (true) {
-            if (isExprStart(peek())) {
+            if (match(TokenType.LEFT_PAREN)) {
                 List<Expr> args = new ArrayList<>();
-                do { args.add(expression()); } while (match(TokenType.COMMA));
+                if (!check(TokenType.RIGHT_PAREN)) {
+                    do { args.add(expression()); } while (match(TokenType.COMMA));
+                }
+                consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.");
                 expr = new Expr.Call(expr, args);
             } else {
                 break;
             }
         }
         return expr;
-    }
-    
-    private boolean isExprStart(Token token) {
-        TokenType t = token.type;
-        return t == TokenType.NUMBER || t == TokenType.STRING || t == TokenType.IDENTIFIER || 
-               t == TokenType.TRUE || t == TokenType.FALSE || t == TokenType.LEFT_PAREN ||
-               t == TokenType.LEFT_BRACKET;
     }
 
     private Expr primary() {
@@ -185,6 +200,25 @@ class Parser {
             consume(TokenType.RIGHT_BRACKET, "Expect ']'");
             return new Expr.Array(elements);
         }
+
+        if (match(TokenType.LEFT_BRACE)) {
+            List<Expr> keys = new ArrayList<>();
+            List<Expr> values = new ArrayList<>();
+            if (!check(TokenType.RIGHT_BRACE)) {
+                do {
+                    if (match(TokenType.IDENTIFIER)) {
+                        keys.add(new Expr.Literal(previous().lexeme));
+                    } else {
+                        keys.add(expression());
+                    }
+                    consume(TokenType.COLON, "Expect ':' after map key.");
+                    values.add(expression());
+                } while (match(TokenType.COMMA));
+            }
+            consume(TokenType.RIGHT_BRACE, "Expect '}'");
+            return new Expr.MapLiteral(keys, values);
+        }
+
         if (match(TokenType.LEFT_PAREN)) {
             Expr expr = expression();
             consume(TokenType.RIGHT_PAREN, "Expect ')'");

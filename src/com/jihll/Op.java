@@ -21,4 +21,9 @@ class Op {
     static final int BUILD_LIST = 17;
     static final int EQUAL = 18;
     static final int SPAWN = 19;
+    static final int BUILD_MAP = 20;
+    static final int IMPORT = 21;
+    static final int LESS_EQUAL = 22;
+    static final int GREATER_EQUAL = 23;
+    static final int NOT_EQUAL = 24;
 }
